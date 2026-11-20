@@ -13,6 +13,7 @@ cargo test --workspace
 cargo test -p kbuds-protocol --test client # one integration test file
 cargo test -p kbudsd session::             # tests matching a path/name filter
 cmake -B build-gui gui && cmake --build build-gui   # GUI; needs qt6-base-dev, qt6-declarative-dev
+cmake --build build-gui --target all_qmllint        # QML lint (keep at 0 warnings)
 target/release/kbudsd -v                   # run the daemon from the tree (-vv trace; RUST_LOG overrides)
 target/release/kbudsd -v --frame-log maestro.log    # raw traffic: one `<ts> TX|RX <hex>` line per frame sent / chunk read
 scripts/build-deb.sh                       # vendor crates + dpkg-buildpackage -b -us -uc -> ../kbuds_*.deb
@@ -50,6 +51,9 @@ gating by device type + firmware). `client` (feature `tokio`) drives the engine 
 `testing` (feature `testing`) is a scripted fake Pixel Buds Pro serving an in-memory duplex stream, modelling
 observed hardware quirks; daemon tests use it as a dev-dependency. Protobufs come from `proto/` via `build.rs`
 (prost; .proto comments are deliberately stripped from generated code).
+pw_rpc addresses services and methods by a 65599 hash of their names (`ids.rs`): never rename `maestro_pw` services
+or rpcs. Message and field names are free (only field numbers reach the wire). Compare
+`protoc --descriptor_set_out` output before and after a proto edit.
 
 ### `crates/kbudsd` (per-user daemon, `systemd --user`, bus name `io.github.kbuds.Daemon`)
 
