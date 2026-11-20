@@ -5,9 +5,15 @@
 # Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
+#
+# kbuds: every push to the default branch builds and tests the .deb (kept 1 week as a job artifact).
+# A version tag (vX.Y.Z, optionally followed by -suffix or +suffix) also uploads the .deb to the generic
+# package registry and creates a GitLab release linking to it.
 stages:
 - test
 - secret-detection
+- build
+- release
 sast:
   stage: test
 include:
@@ -15,3 +21,93 @@ include:
 - template: Security/Secret-Detection.gitlab-ci.yml
 secret_detection:
   stage: secret-detection
+
+.release-tag: &release-tag
+  if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+([+-].+)?$/
+
+deb:
+  stage: build
+  image: ubuntu:26.04
+  needs: []
+  rules:
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  - *release-tag
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+  - apt-get update
+  - apt-get install -y --no-install-recommends ca-certificates python3
+  - apt-get build-dep -y --no-install-recommends ./
+  script:
+  # On a tag, the tag must match debian/changelog (~ in the Debian version is written - in the
+  # tag) and its X.Y.Z must match the workspace version in Cargo.toml.
+  - |
+    if [ -n "${CI_COMMIT_TAG:-}" ]; then
+      VERSION="${CI_COMMIT_TAG#v}"
+      DEB_VERSION="$(dpkg-parsechangelog -SVersion)"
+      CARGO_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+      if [ "$(printf '%s' "$DEB_VERSION" | tr '~' '-')" != "$VERSION" ]; then
+        echo "tag $CI_COMMIT_TAG does not match debian/changelog version $DEB_VERSION" >&2; exit 1
+      fi
+      if [ "${VERSION%%[-+]*}" != "$CARGO_VERSION" ]; then
+        echo "tag $CI_COMMIT_TAG does not match Cargo.toml version $CARGO_VERSION" >&2; exit 1
+      fi
+    fi
+  - scripts/build-deb.sh
+  - mkdir -p dist
+  - mv ../kbuds_*_amd64.deb dist/
+  - dpkg-deb --info dist/kbuds_*_amd64.deb
+  - dpkg-deb --contents dist/kbuds_*_amd64.deb
+  - |
+    if [ -n "${CI_COMMIT_TAG:-}" ]; then
+      DEB="kbuds_${VERSION}_amd64.deb"
+      [ -f "dist/$DEB" ] || mv dist/kbuds_*_amd64.deb "dist/$DEB"
+      {
+        dpkg-parsechangelog -SChanges | sed '1,/^\.$/d; s/^\.$//'
+        echo
+        echo "Built for Ubuntu 26.04 (amd64). Install with:"
+        echo
+        echo '```'
+        echo "sudo apt install ./$DEB"
+        echo '```'
+      } > dist/release-notes.md
+      printf 'VERSION=%s\nDEB=%s\n' "$VERSION" "$DEB" > release.env
+    fi
+  artifacts:
+    paths:
+    - dist/
+    expire_in: 1 week
+    reports:
+      dotenv: release.env
+
+upload:
+  stage: release
+  image:
+    name: curlimages/curl:8.11.1
+    entrypoint: [""]
+  needs: [deb]
+  rules:
+  - *release-tag
+  script:
+  - >
+    curl --fail-with-body --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "dist/$DEB"
+    "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/kbuds/${VERSION}/${DEB}"
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  needs: [deb, upload]
+  rules:
+  - *release-tag
+  script:
+  - echo "Releasing $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: kbuds $VERSION
+    description: ./dist/release-notes.md
+    assets:
+      links:
+      - name: $DEB
+        url: ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/kbuds/${VERSION}/${DEB}
+        link_type: package
+        direct_asset_path: /$DEB

@@ -28,6 +28,14 @@ scripts/build-deb.sh                       # vendor crates + dpkg-buildpackage -
 - The daemon needs the real system bus (BlueZ) and session bus; end-to-end and hardware testing can't happen in a
   sandbox without bus access.
 
+## CI and releases (`.gitlab-ci.yml`)
+
+Every push to `main` builds and tests the .deb on `ubuntu:26.04` (job `deb`, artifact kept 1 week). To release:
+bump `version` in `Cargo.toml` and add a `debian/changelog` entry, commit, then `git tag -s vX.Y.Z -m "kbuds X.Y.Z"`
+and push the tag (`vX.Y.Z-rc1` ↔ changelog `X.Y.Z~rc1`). The tag pipeline fails if the tag, changelog and
+`Cargo.toml` disagree; otherwise it uploads the .deb to the generic package registry and creates the GitLab release
+linking to it, with the changelog entry as notes.
+
 ## Architecture
 
 Hard rule: **Google RPCs live only in the daemon; standard Bluetooth profiles live only in
