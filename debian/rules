@@ -1,0 +1,67 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Rust crates are built offline from vendor/ (scripts/vendor.sh), the GUI with CMake.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+# Build with the distribution toolchain (rustc 1.93 = rust-version), not a rustup one on PATH.
+export PATH := /usr/bin:$(PATH)
+export CARGO_HOME = $(CURDIR)/debian/cargo-home
+export CARGO_TARGET_DIR = $(CURDIR)/target
+# Keep debug info; dh_strip moves it to the -dbgsym package.
+export CARGO_PROFILE_RELEASE_DEBUG = line-tables-only
+export CARGO_PROFILE_RELEASE_STRIP = none
+CARGO = cargo --offline --locked
+DESTDIR = $(CURDIR)/debian/kbuds
+KBUDSCTL = $(CURDIR)/target/release/kbudsctl
+
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+CARGO_JOBS = -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+%:
+	dh $@ --buildsystem=cmake --sourcedirectory=gui --builddirectory=build-gui
+
+override_dh_auto_configure:
+	test -d vendor && test -f .cargo/config.toml || \
+		{ echo "vendor/ missing: run scripts/vendor.sh first" >&2; exit 1; }
+	dh_auto_configure -- -DKBUDS_DBUS_DIR=$(CURDIR)/dbus
+
+override_dh_auto_build:
+	dh_auto_build
+	$(CARGO) build --release --workspace $(CARGO_JOBS)
+	mkdir -p debian/generated
+	$(KBUDSCTL) completions bash > debian/generated/kbudsctl
+	$(KBUDSCTL) completions fish > debian/generated/kbudsctl.fish
+	$(KBUDSCTL) completions zsh > debian/generated/_kbudsctl
+	$(KBUDSCTL) man > debian/generated/kbudsctl.1
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	$(CARGO) test --release --workspace $(CARGO_JOBS)
+endif
+
+override_dh_auto_install:
+	dh_auto_install
+	install -D -m 0755 target/release/kbudsd $(DESTDIR)/usr/libexec/kbuds/kbudsd
+	install -D -m 0755 target/release/kbudsctl $(DESTDIR)/usr/bin/kbudsctl
+	install -D -m 0644 data/kbudsd.service $(DESTDIR)/usr/lib/systemd/user/kbudsd.service
+	install -D -m 0644 data/io.github.kbuds.Daemon.service \
+		$(DESTDIR)/usr/share/dbus-1/services/io.github.kbuds.Daemon.service
+	install -D -m 0644 -t $(DESTDIR)/usr/share/dbus-1/interfaces dbus/io.github.kbuds.*.xml
+	install -D -m 0644 data/wireplumber/51-kbuds-pixelbuds.conf \
+		$(DESTDIR)/usr/share/wireplumber/wireplumber.conf.d/51-kbuds-pixelbuds.conf
+	install -D -m 0644 debian/generated/kbudsctl $(DESTDIR)/usr/share/bash-completion/completions/kbudsctl
+	install -D -m 0644 debian/generated/kbudsctl.fish $(DESTDIR)/usr/share/fish/vendor_completions.d/kbudsctl.fish
+	install -D -m 0644 debian/generated/_kbudsctl $(DESTDIR)/usr/share/zsh/vendor-completions/_kbudsctl
+
+override_dh_installman:
+	dh_installman debian/generated/kbudsctl.1 gui/kbuds.1
+
+# dh_clean deletes *.orig files, but vendor/*/Cargo.toml.orig are part of the crates' checksums.
+override_dh_clean:
+	dh_clean -Xvendor/
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf target debian/cargo-home debian/generated build-gui

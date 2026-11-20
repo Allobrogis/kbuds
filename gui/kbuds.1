@@ -1,0 +1,25 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.TH KBUDS 1 "November 2026" "kbuds 0.1.0" "User Commands"
+.SH NAME
+kbuds \- settings for Google Pixel Buds
+.SH SYNOPSIS
+.B kbuds
+.RI [ Qt\ options ]
+.SH DESCRIPTION
+.B kbuds
+shows the battery of Google Pixel Buds Pro, Pro 2 and 2a and lets you change
+noise control, multipoint and "PC only" (exclusive) mode. It also reports and
+fixes audio-stream problems (Opus dual mono, headset-profile fallback).
+.PP
+It is a client of the
+.BR kbudsd
+daemon (D-Bus name io.github.kbuds.Daemon on the session bus), which it starts
+through D-Bus activation when needed. It never talks to Bluetooth itself.
+.SH ENVIRONMENT
+.TP
+.B QT_QUICK_CONTROLS_STYLE
+Overrides the default Material style (as does the
+.B \-style
+option), e.g. org.kde.desktop for the Plasma look.
+.SH SEE ALSO
+.BR kbudsctl (1)

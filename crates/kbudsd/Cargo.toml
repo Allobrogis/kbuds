@@ -1,0 +1,29 @@
+[package]
+name = "kbudsd"
+description = "Pixel Buds daemon: owns the Maestro RFCOMM channel and exposes the buds on D-Bus"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+kbuds-protocol.workspace = true
+zbus = { version = "5", default-features = false, features = ["tokio", "blocking-api"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal", "net", "io-util", "process", "fs"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+libc = "0.2"
+anyhow = "1"
+thiserror = "2"
+
+[dev-dependencies]
+kbuds-protocol = { workspace = true, features = ["testing"] }
+zbus_xml = "5"
+tokio = { version = "1", features = ["test-util"] }

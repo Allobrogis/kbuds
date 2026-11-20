@@ -1,0 +1,104 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  kbuds daemon: one Pixel Buds device. Object path
+  /io/github/kbuds/dev_AA_BB_CC_DD_EE_FF (BlueZ-style address encoding).
+
+  All properties emit org.freedesktop.DBus.Properties.PropertiesChanged.
+  Values that are not known (device disconnected, not reported yet) use the
+  documented "unknown" value: "" for strings, -1 for levels, 0 for numbers.
+
+  Errors returned by methods:
+    io.github.kbuds.Error.NotConnected  the Maestro session is not up
+    io.github.kbuds.Error.Unavailable   the buds refused for a transient reason
+                                        (e.g. ANC while in the case)
+    io.github.kbuds.Error.NotSupported  the model/firmware does not offer it
+    io.github.kbuds.Error.InvalidArgs   unknown value
+    io.github.kbuds.Error.Timeout       no answer after all retries
+    io.github.kbuds.Error.Failed        anything else (message has details)
+-->
+<node>
+  <interface name="io.github.kbuds.Device1">
+    <!-- Identity -->
+    <!-- Bluetooth address, "AA:BB:CC:DD:EE:FF". -->
+    <property name="Address" type="s" access="read"/>
+    <!-- BlueZ alias of the device. -->
+    <property name="Name" type="s" access="read"/>
+    <!-- "pro", "pro2", "2a", "unsupported" or "" (not identified yet). -->
+    <property name="Model" type="s" access="read"/>
+    <!-- HardwareInfo device type (4 = Pro, 6 = Pro 2, 9 = 2a), 0 = unknown. -->
+    <property name="DeviceType" type="u" access="read"/>
+    <!-- Colour/SKU code, 0 = unknown. -->
+    <property name="Sku" type="u" access="read"/>
+    <property name="FirmwareLeft" type="s" access="read"/>
+    <property name="FirmwareRight" type="s" access="read"/>
+    <property name="FirmwareCase" type="s" access="read"/>
+    <property name="SerialLeft" type="s" access="read"/>
+    <property name="SerialRight" type="s" access="read"/>
+    <property name="SerialCase" type="s" access="read"/>
+
+    <!-- Connection -->
+    <!-- Bluetooth link to the buds (BlueZ Device1.Connected). -->
+    <property name="BluetoothConnected" type="b" access="read"/>
+    <!-- Maestro session: "disconnected", "connecting", "connected", "reconnecting". -->
+    <property name="State" type="s" access="read"/>
+    <!-- This host's id for the current session: "A", "B" or "". -->
+    <property name="HostId" type="s" access="read"/>
+    <!-- Primary bud: "left", "right" or "". -->
+    <property name="Primary" type="s" access="read"/>
+
+    <!-- Battery: percentage 0..100, -1 = unknown. The case level is only
+         reported while a bud is in the open case. -->
+    <property name="BatteryLeft" type="i" access="read"/>
+    <property name="BatteryRight" type="i" access="read"/>
+    <property name="BatteryCase" type="i" access="read"/>
+    <property name="ChargingLeft" type="b" access="read"/>
+    <property name="ChargingRight" type="b" access="read"/>
+    <property name="ChargingCase" type="b" access="read"/>
+    <!-- Bud placement: "in_case", "out" or "" (bud not connected). -->
+    <property name="PlacementLeft" type="s" access="read"/>
+    <property name="PlacementRight" type="s" access="read"/>
+
+    <!-- Settings -->
+    <!-- Noise control: "off", "active", "aware", "adaptive",
+         "unavailable" (buds in the case) or "" (unknown / not supported). -->
+    <property name="Anc" type="s" access="read"/>
+    <!-- Modes SetAnc accepts on this model and firmware. Empty = no ANC. -->
+    <property name="AncModes" type="as" access="read"/>
+    <!-- Write a noise-control mode; returns once the buds confirm it (read back). -->
+    <method name="SetAnc">
+      <arg name="mode" type="s" direction="in"/>
+    </method>
+
+    <property name="Multipoint" type="b" access="read"/>
+    <property name="MultipointSupported" type="b" access="read"/>
+    <method name="SetMultipoint">
+      <arg name="enabled" type="b" direction="in"/>
+    </method>
+
+    <!-- Multipoint audio ownership -->
+    <!-- true = another host currently holds the audio (buds' quiet mode). -->
+    <property name="OtherHostHasAudio" type="b" access="read"/>
+    <!-- "PC only": this host has exclusive use and the other host is
+         disconnected. Ends on SetExclusive(false), daemon stop or link loss. -->
+    <property name="Exclusive" type="b" access="read"/>
+    <method name="SetExclusive">
+      <arg name="enabled" type="b" direction="in"/>
+    </method>
+
+    <!-- Audio stack (BlueZ/PipeWire) -->
+    <!-- "a2dp", "hfp" or "none". -->
+    <property name="AudioProfile" type="s" access="read"/>
+    <!-- A2DP Opus-G channel mode: "stereo", "dual_mono", "mono" or "" (unknown / other codec). -->
+    <property name="A2dpChannelMode" type="s" access="read"/>
+    <!-- "" (none), "dual_mono" (buds-configured stream; the PC cannot take the
+         audio back from another host) or "hfp_fallback" (HFP while A2DP is expected). -->
+    <property name="AudioProblem" type="s" access="read"/>
+    <!-- Reconnect the A2DP stream from this host so it is configured as stereo. -->
+    <method name="FixAudio"/>
+    <!-- Run FixAudio automatically when AudioProblem is set (rate limited). Persisted. -->
+    <property name="AutoFixAudio" type="b" access="readwrite"/>
+  </interface>
+</node>

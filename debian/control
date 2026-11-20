@@ -1,0 +1,44 @@
+Source: kbuds
+Section: utils
+Priority: optional
+Maintainer: Benjamin Terrier <bt@bterrier.dev>
+Build-Depends:
+ debhelper-compat (= 13),
+ cargo (>= 1.93),
+ rustc (>= 1.93),
+ protobuf-compiler,
+ cmake (>= 3.21),
+ qt6-base-dev (>= 6.8),
+ qt6-base-dev-tools (>= 6.8),
+ qt6-declarative-dev (>= 6.8),
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+
+Package: kbuds
+Architecture: linux-any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ bluez,
+ dbus-user-session | dbus-x11,
+ pipewire-bin,
+ wireplumber (>= 0.5),
+ qml6-module-qtqml,
+ qml6-module-qtqml-workerscript,
+ qml6-module-qtquick,
+ qml6-module-qtquick-controls,
+ qml6-module-qtquick-layouts,
+ qml6-module-qtquick-templates,
+ qml6-module-qtquick-window,
+Recommends:
+ pipewire-pulse,
+ upower,
+Description: Google Pixel Buds support (battery, noise control, multipoint)
+ kbuds talks to Google Pixel Buds Pro, Pro 2 and 2a over their Maestro
+ Bluetooth channel. It contains:
+  - kbudsd, a per-user daemon (systemd user service) that owns the channel,
+    exposes the buds on D-Bus and publishes their battery to BlueZ/UPower;
+  - kbudsctl, a command-line client;
+  - kbuds, a Qt Quick settings application;
+  - a WirePlumber rule that suspends the buds' A2DP sink after 1 s, so that
+    a multipoint phone can take the audio back quickly.

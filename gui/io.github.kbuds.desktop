@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=kbuds
+GenericName=Earbuds settings
+Comment=Battery, noise control and multipoint for Google Pixel Buds
+Exec=kbuds
+Icon=io.github.kbuds
+Terminal=false
+Categories=Settings;HardwareSettings;Qt;
+Keywords=Pixel Buds;pixel;buds;google;bluetooth;earbuds;headphones;anc;battery;
+StartupNotify=true

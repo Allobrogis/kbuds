@@ -1,0 +1,31 @@
+// pw_rpc wire packet as used by Google Pixel Buds Pro, Pro 2 and 2a.
+// Reverse-engineered for interoperability (EU Directive 2009/24/EC art. 6).
+//
+// Field numbers and types match upstream Pigweed pw_rpc/internal/packet.proto exactly,
+// so the upstream names are used.
+syntax = "proto3";
+
+package pw.rpc.internal;
+
+// Client->server packets are even, server->client packets are odd (the app's client ignores
+// packets with `type % 2 == 0`).
+enum PacketType {
+  REQUEST = 0;                     // sent by app: first packet of every call
+  RESPONSE = 1;                    // final packet; for unary methods carries the payload
+  CLIENT_STREAM = 2;               // sent by app: pw.transfer chunks on the Write stream
+  CLIENT_ERROR = 4;                // sent by app: cancel (status=CANCELLED) or reject
+                                   // (NOT_FOUND / FAILED_PRECONDITION)
+  SERVER_ERROR = 5;                // call failed; status field holds the error
+  SERVER_STREAM = 7;               // one message of a server/bidi stream
+  CLIENT_REQUEST_COMPLETION = 8;   // known to the app, never sent by it
+}
+
+message RpcPacket {
+  PacketType type = 1;
+  uint32 channel_id = 2;   // 18..27 for Pixel Buds
+  fixed32 service_id = 3;  // pw_rpc 65599 hash of "package.Service"
+  fixed32 method_id = 4;   // pw_rpc 65599 hash of "Method"
+  bytes payload = 5;       // serialized request / response message
+  uint32 status = 6;       // pw::Status code: 0 OK .. 16 UNAUTHENTICATED
+  uint32 call_id = 7;      // never set by the app (always 0 / absent)
+}

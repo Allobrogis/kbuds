@@ -1,0 +1,374 @@
+// maestro_pw services and non-settings messages, as spoken by Google Pixel Buds Pro, Pro 2 and 2a.
+// Reverse-engineered for interoperability (EU Directive 2009/24/EC art. 6).
+//
+// Field numbers and types are the wire format; names are ours. Tags: [confirmed] (the companion app
+// uses it this way), [confirmed on hardware: ...] (observed on real buds), [inferred]. Settings
+// messages live in settings.proto.
+//
+// Routing (confirmed): most calls go to the "primary" bud, chosen at connect time by sending
+// GetSoftwareInfo from MAESTRO_A and MAESTRO_B to LEFT_BT_CORE and RIGHT_BT_CORE (4 probes); the bud
+// whose reply has is_secondary == false becomes the primary route.
+
+syntax = "proto2";
+
+package maestro_pw;
+
+import "maestro_pw/settings.proto";
+
+// google.protobuf.Empty equivalent. Defined locally so this file has no external imports;
+// wire-identical to google.protobuf.Empty.
+message Empty {}
+
+// ===========================================================================
+// Services
+// ===========================================================================
+
+service Maestro {
+  rpc GetSoftwareInfo(Empty) returns (SoftwareInfo);
+  rpc GetHardwareInfo(Empty) returns (HardwareInfo);
+  rpc SubscribeRuntimeInfo(Empty) returns (stream RuntimeInfo);
+  rpc SetWallclock(Wallclock) returns (Empty);
+  rpc WriteSetting(SettingValue) returns (Empty);
+  rpc ReadSetting(ReadSettingRequest) returns (SettingValue);
+  rpc SubscribeToSettingsChanges(Empty) returns (stream SettingValue);
+  rpc SubscribeToOobeActions(Empty) returns (stream OobeAction);
+}
+
+service Multipoint {
+  rpc SubscribeToQuietModeStatus(Empty) returns (stream QuietModeStatus);
+  rpc ForceMultipointSwitch(ForceMultipointSwitchRequest) returns (Empty);
+}
+
+service HeadGesture {
+  rpc StartDetection(StartHeadGestureDetectionRequest) returns (Empty);
+  rpc SubscribeToResults(SubscribeHeadGestureResultsRequest) returns (stream HeadGestureResult);
+  rpc EndDetection(EndHeadGestureDetectionRequest) returns (Empty);
+}
+
+service EartipFitTest {
+  rpc StartTest(StartFitTestRequest) returns (Empty);
+  rpc SubscribeToResults(SubscribeFitTestResultsRequest) returns (stream FitTestResult);
+  rpc EndTest(EndFitTestRequest) returns (Empty);
+}
+
+service Dosimeter {
+  rpc FetchDailySummaries(Empty) returns (DosimeterSummaries);
+  rpc SubscribeToLiveDb(Empty) returns (stream DosimeterLiveDb);
+}
+
+service JitterBuffer {
+  rpc SetJitterBufferSizePreference(JitterBufferSizePreference) returns (Empty);
+}
+
+// Only SetConfig is called by the app.
+service DynamicServerConfigService {
+  rpc SetConfig(DynamicServerConfig) returns (Empty);
+  rpc GetConfig(Empty) returns (DynamicServerConfig);
+  rpc SetOverrides(DynamicServerConfig) returns (Empty);   // [inferred types]
+  rpc GetOverrides(Empty) returns (DynamicServerConfig);   // [inferred types]
+}
+
+// ===========================================================================
+// GetSoftwareInfo  (pull, once per connection; 4 probes for primary routing)
+// ===========================================================================
+
+// [confirmed]
+message SoftwareInfo {
+  // Not in the app's schema, so the app ignores it. The buds' own clock, UTC epoch ms.
+  // [confirmed on hardware: Pro fw 575]
+  optional uint64 wallclock_ms = 2;
+  // Pro fw 575 sends versions_b [confirmed on hardware: Pro fw 575].
+  oneof versions {
+    FirmwareVersions versions_a = 3;
+    FirmwareVersions versions_b = 4;  // same layout, read identically
+  }
+  optional fixed64 random_id = 5;     // stored if != 0
+  optional bool is_secondary = 6;     // false => replying bud is the primary route [confirmed; name inferred]
+}
+
+// [confirmed] The app formats them as "L_<left>-C_<case>-R_<right>".
+message FirmwareVersions {
+  optional ComponentVersion case = 1;
+  optional ComponentVersion left = 2;
+  optional ComponentVersion right = 3;
+}
+
+message ComponentVersion {
+  optional string version = 1;        // dotted numeric version [confirmed]
+  optional string display_label = 2;  // preferred for display when present [confirmed]
+}
+
+// ===========================================================================
+// GetHardwareInfo  (pull, once after connect, primary bud)
+// ===========================================================================
+
+// [confirmed]
+message HardwareInfo {
+  // Valid 1,2,4,5,6,9,10,11,12; 0/invalid treated as 1.
+  // 1 presto (Pixel Buds 2020), 2 stretto (A-Series), 4/5 allegro (Pro),
+  // 6 largo (Pro 2), 9 A-Series 2 / ag12-ag22.
+  optional int32 device_type = 1;
+  optional uint32 sku = 2;            // colour/SKU code
+  oneof serials {
+    SerialNumbers serials_a = 4;
+    SerialNumbers serials_b = 7;
+  }
+  optional HwVersion bud_hw_version = 5;   // [confirmed]
+  optional HwVersion case_hw_version = 6;  // [confirmed]
+  optional string fatp_config_legacy = 9;  // used only when field 10 absent
+  optional ManufacturingConfig fatp_config = 10;
+  optional ManufacturingConfig smt_config = 11;
+}
+
+// [confirmed]
+message SerialNumbers {
+  optional string case = 1;
+  optional string right = 2;
+  optional string left = 3;
+}
+
+// Meaning of the three strings unknown; f3 corresponds to the legacy HardwareInfo.f9.
+message ManufacturingConfig {
+  optional string f1 = 1;
+  optional string f2 = 2;
+  optional string f3 = 3;
+}
+
+enum HwVersion {
+  HW_VER_UNKNOWN = -1;
+  HW_VER_NFF = 0;
+  HW_VER_P1 = 1;
+  HW_VER_P2_NFF = 2;
+  HW_VER_P2 = 3;
+  HW_VER_EVT_NFF = 4;
+  HW_VER_EVT = 5;
+  HW_VER_DVT = 6;
+  HW_VER_PVT = 7;
+  HW_VER_P1_1 = 8;
+  HW_VER_PRQ = 9;
+  HW_VER_EVT1_1 = 10;
+  HW_VER_EVT2_0 = 11;
+}
+
+// ===========================================================================
+// SubscribeRuntimeInfo  (push stream, opened at connect on the primary bud)
+// ===========================================================================
+
+// Two independent oneofs; each update may carry battery or connectivity. [confirmed]
+message RuntimeInfo {
+  // Not in the app's schema. The buds' own clock at the time of the push, UTC epoch ms.
+  // [confirmed on hardware: Pro fw 575] Field 3 (varint, seen = 0) is still unknown.
+  optional uint64 wallclock_ms = 2;
+  // Pro fw 575 sends battery_b and placement_b in every push [confirmed on hardware: Pro fw 575].
+  oneof battery {
+    BatteryInfo battery_a = 4;
+    BatteryInfo battery_b = 6;
+  }
+  oneof placement {
+    BudPlacementA placement_a = 5;
+    BudPlacementB placement_b = 7;    // the app answers every update with ReadSetting(allegro=13)
+  }
+}
+
+// [confirmed]
+message BatteryInfo {
+  optional BatteryLevel case = 1;
+  optional BatteryLevel left = 2;
+  optional BatteryLevel right = 3;
+}
+
+message BatteryLevel {
+  optional uint32 level_percent = 1;      // 0..100 [confirmed]
+  optional ChargingState charging = 2;
+}
+
+// No zero value on the wire.
+enum ChargingState {
+  NOT_CHARGING = 1;
+  WIRED = 2;
+  GENERIC_QI = 3;
+}
+
+// Field present = that bud connected; value = bud in case
+// [present-semantics confirmed; "in case" inferred].
+message BudPlacementA {
+  optional bool right_in_case = 1;
+  optional bool left_in_case = 2;
+}
+
+// [confirmed]
+message BudPlacementB {
+  optional bool right_in_case = 1;
+  optional bool left_in_case = 2;
+  // [confirmed on hardware: Pro fw 575] true right after each accepted A2DP Start from THIS host,
+  // false right after its Suspend; another host's stream does not set it. A better name would be
+  // host_streaming [inferred]; the field keeps its original name for now.
+  optional bool low_latency_mode = 3;
+}
+
+// ===========================================================================
+// SetWallclock (sent on every connection and before KPI fetch)
+// ===========================================================================
+
+// [confirmed]
+message Wallclock {
+  optional uint64 epoch_ms = 1;   // UTC milliseconds since epoch
+}
+
+// ===========================================================================
+// SubscribeToOobeActions: tutorial gestures and on-head (in-ear) state
+// ===========================================================================
+// The app's only source of in-ear state (LEFT/RIGHT_ON_HEAD / _OFF_HEAD below; RuntimeInfo
+// placement is in-case only). The app reads it in the OOBE tutorial, the eartip fit test (needs a
+// bud on head) and the manual OTA apply step (applies only when no bud is on head), and keeps the
+// stream open only while observed. Legacy RFCOMM: code 11 (LegacyOobeAction).
+// [confirmed on hardware: Pro fw 575] Outside the tutorial the stream sends the current on-head
+// state of both buds at once (e.g. LEFT_ON_HEAD, RIGHT_OFF_HEAD), then ends with UNAVAILABLE (14)
+// after 0.5-3.4 s, so a host can poll it. Whether a change is pushed on a still-open stream is not
+// known yet.
+
+// [confirmed]
+message OobeAction {
+  optional ActionType action = 1;
+}
+
+// Legacy-RFCOMM wrapper (code 11) around either form.
+message LegacyOobeAction {
+  oneof action {
+    OobeActionShort short_form = 1;
+    OobeAction long_form = 2;
+  }
+}
+
+message OobeActionShort {
+  optional ActionType action = 1;
+}
+
+enum ActionType {
+  ACTION_TYPE_UNKNOWN = 0;
+  SINGLE_TAP = 1;
+  DOUBLE_TAP = 2;
+  TRIPLE_TAP = 3;
+  HOLD = 4;
+  SWIPE_FORWARD = 5;
+  SWIPE_BACKWARD = 6;
+  SWIPE_UP = 7;
+  SWIPE_DOWN = 8;
+  HOTWORD = 9;
+  LEFT_ON_HEAD = 10;
+  LEFT_OFF_HEAD = 11;
+  RIGHT_ON_HEAD = 12;
+  RIGHT_OFF_HEAD = 13;
+  SPECULATIVE_TAP = 14;
+  HOLD_END = 15;
+  HOLD_CANCEL = 16;
+}
+
+// ===========================================================================
+// Multipoint
+// ===========================================================================
+
+// While true the app treats the buds as unavailable (another source owns them): it pauses OTA,
+// the dosimeter and the jitter request. [confirmed]
+// [confirmed on hardware: Pro fw 575] Snapshot on subscribe, then a push per change (call_id
+// echoed). Went false 37 ms after this host's accepted A2DP Start, true when the other host took
+// the audio.
+message QuietModeStatus {
+  optional bool quiet_mode = 1;
+}
+
+// Sent by the app to the primary bud at the start (no release) and end (release = true) of OOBE,
+// the fit test and manual OTA. [confirmed]
+// Start = exclusive use for this host: quiet_mode -> false, this host's HID reopened, the other
+// host is disconnected from the buds. It ends on release (same session) or when this host's
+// Maestro session closes. A release from a new session has no effect.
+// [confirmed on hardware: Pro fw 575; phone side by ear]
+message ForceMultipointSwitchRequest {
+  optional int32 source_endpoint = 1;   // this host's own HDLC id (MAESTRO_A 10 / MAESTRO_B 13) [confirmed on hardware]
+  optional bool release = 2;            // true = end exclusive use; absent = start [confirmed on hardware]
+}
+
+// ===========================================================================
+// HeadGesture (tutorial UI only; primary bud)
+// ===========================================================================
+
+message StartHeadGestureDetectionRequest {}
+message SubscribeHeadGestureResultsRequest {}
+message EndHeadGestureDetectionRequest {}
+
+// [confirmed]
+message HeadGestureResult {
+  optional HeadGestureType gesture = 1;  // 0..2
+}
+
+enum HeadGestureType {
+  HEAD_GESTURE_UNKNOWN = 0;
+  HEAD_GESTURE_NOD = 1;     // "Nod your head to answer a call"
+  HEAD_GESTURE_SHAKE = 2;   // "Shake your head to dismiss a call"
+}
+
+// ===========================================================================
+// EartipFitTest (per bud: StartTest -> SubscribeToResults -> EndTest)
+// ===========================================================================
+
+message StartFitTestRequest {}
+message SubscribeFitTestResultsRequest {}
+message EndFitTestRequest {}
+
+// [confirmed]
+// App thresholds: fit_metric must be > 80 and <= 200; noise_metric limit 40 for device types
+// 6/9/12, else 20; >= 255 = failed.
+message FitTestResult {
+  optional float fit_metric = 1;
+  optional float noise_metric = 2;
+}
+
+// ===========================================================================
+// Dosimeter (hearing wellness)
+// ===========================================================================
+
+// Pulled from both buds at connect.
+message DosimeterSummaries {
+  optional uint32 current_day = 1;
+  repeated DosimeterDay days = 2;
+  optional uint32 f3 = 3;               // unknown
+  optional uint32 f4 = 4;               // unknown
+  optional float last_24h_dose = 5;     // daily % = value / 4.843351e10 * 100
+}
+
+message DosimeterDay {
+  optional uint32 day_index = 1;
+  optional float dose = 6;              // weekly % = sum(7 days ending current_day) / 3.3903457e11 * 100
+}
+
+// Pushed per bud while the feature is on, the bud is out of the case and not in quiet mode.
+message DosimeterLiveDb {
+  optional float level_linear = 2;      // dB = round(10*log10(x)); x < 1 => 0; the app averages both buds first
+}
+
+// ===========================================================================
+// JitterBuffer
+// ===========================================================================
+
+// [confirmed]
+message JitterBufferSizePreference {
+  optional JitterBufferPreference preference = 1;  // 0..1
+}
+
+enum JitterBufferPreference {
+  JITTER_BUFFER_DEFAULT = 0;
+  JITTER_BUFFER_LOW_LATENCY = 1;
+}
+
+// ===========================================================================
+// DynamicServerConfigService
+// ===========================================================================
+
+// Declares no fields in the app; the app writes bool fields whose field number is a feature key,
+// always keys 1..3 (default false). Values come from a server-side flag (rules filtered by device
+// type and firmware range, highest priority per key wins). [confirmed]
+message DynamicServerConfig {
+  optional bool feature_1 = 1;
+  optional bool feature_2 = 2;   // default rule: on for Pro 2 from fw number 1781127504
+  optional bool feature_3 = 3;
+}

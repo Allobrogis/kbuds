@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Pixel Buds daemon (kbuds)
+Documentation=man:kbudsctl(1)
+After=dbus.socket pipewire.service wireplumber.service
+# Not for system users (e.g. the display manager greeter): only one daemon may own the buds.
+ConditionUser=!@system
+
+[Service]
+Type=dbus
+BusName=io.github.kbuds.Daemon
+ExecStart=/usr/libexec/kbuds/kbudsd
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,31 @@
+[package]
+name = "kbuds-protocol"
+description = "Google Pixel Buds Maestro protocol (pw_hdlc + pw_rpc + maestro_pw protobufs), sans-IO core with an optional tokio client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+default = ["tokio"]
+tokio = ["dep:tokio", "dep:tracing"]
+# Fake buds for tests of this crate and of the daemon.
+testing = ["tokio"]
+
+[dependencies]
+prost = "0.14"
+crc32fast = "1"
+bytes = "1"
+thiserror = "2"
+tokio = { version = "1", optional = true, features = ["io-util", "sync", "time", "macros", "rt"] }
+tracing = { version = "0.1", optional = true }
+
+[build-dependencies]
+prost-build = "0.14"
+
+[dev-dependencies]
+kbuds-protocol = { path = ".", features = ["testing"] }
+tokio = { version = "1", features = ["io-util", "sync", "time", "macros", "rt", "rt-multi-thread", "test-util"] }
+hex = "0.4"

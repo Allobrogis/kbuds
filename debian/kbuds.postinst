@@ -1,0 +1,34 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+
+# Runs systemctl --user ACTION... in every running user manager (systemd >= 249.10).
+for_each_user() {
+	[ -d /run/systemd/system ] && [ -z "${DPKG_ROOT:-}" ] || return 0
+	for uid in $(systemctl --no-legend --quiet list-units 'user@*.service' 2>/dev/null |
+			sed -n -r 's/.*user@([0-9]+)\.service.*/\1/p'); do
+		systemctl --quiet --user --machine "$uid@" "$@" >/dev/null 2>&1 || true
+	done
+}
+
+RULE=/usr/share/wireplumber/wireplumber.conf.d/51-kbuds-pixelbuds.conf
+RULE_STAMP=/var/lib/kbuds/wireplumber-rule.sha256
+
+#DEBHELPER#
+
+if [ "$1" = "configure" ]; then
+	for_each_user daemon-reload
+	if [ -n "$2" ]; then
+		# Upgrade: run the new daemon where it was running (or enabled).
+		for_each_user restart kbudsd.service
+	else
+		for_each_user start kbudsd.service
+	fi
+	# Restart WirePlumber only when the rule changed: it briefly interrupts audio.
+	mkdir -p /var/lib/kbuds
+	new=$(sha256sum "$RULE" | cut -d' ' -f1)
+	if [ "$(cat "$RULE_STAMP" 2>/dev/null)" != "$new" ]; then
+		for_each_user try-restart wireplumber.service
+		echo "$new" > "$RULE_STAMP"
+	fi
+fi

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=io.github.kbuds.Daemon
+Exec=/usr/libexec/kbuds/kbudsd
+SystemdService=kbudsd.service

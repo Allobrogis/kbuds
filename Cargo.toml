@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = ["crates/kbuds-protocol", "crates/kbudsd", "crates/kbudsctl"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# Ubuntu 26.04 ships rustc 1.93; the .deb is built with it.
+rust-version = "1.93"
+license = "GPL-3.0-or-later"
+authors = ["Benjamin Terrier"]
+publish = false
+
+[workspace.dependencies]
+kbuds-protocol = { path = "crates/kbuds-protocol" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = "debuginfo"

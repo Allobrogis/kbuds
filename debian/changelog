@@ -1,0 +1,5 @@
+kbuds (0.1.0) resolute; urgency=medium
+
+  * Initial release: kbudsd daemon, kbudsctl CLI, kbuds GUI, WirePlumber rule.
+
+ -- Benjamin Terrier <bt@bterrier.dev>  Thu, 19 Nov 2026 18:00:00 +0100

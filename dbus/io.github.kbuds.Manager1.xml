@@ -1,0 +1,29 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  kbuds daemon: entry point. Session bus, well-known name io.github.kbuds.Daemon,
+  object path /io/github/kbuds.
+
+  This file is the single source of truth for the interface. It is consumed by
+  the daemon (conformance test), the CLI (generated proxy) and the GUI
+  (qdbusxml2cpp). Change it first, then the implementations.
+-->
+<node>
+  <interface name="io.github.kbuds.Manager1">
+    <!-- Object paths of all known Pixel Buds (paired devices that expose the
+         Maestro service), connected or not. Each implements
+         io.github.kbuds.Device1. -->
+    <property name="Devices" type="ao" access="read"/>
+    <!-- Daemon version, e.g. "0.1.0". -->
+    <property name="Version" type="s" access="read"/>
+
+    <signal name="DeviceAdded">
+      <arg name="device" type="o"/>
+    </signal>
+    <signal name="DeviceRemoved">
+      <arg name="device" type="o"/>
+    </signal>
+  </interface>
+</node>

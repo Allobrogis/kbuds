@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -e
+
+# Runs systemctl --user ACTION... in every running user manager (systemd >= 249.10).
+for_each_user() {
+	[ -d /run/systemd/system ] && [ -z "${DPKG_ROOT:-}" ] || return 0
+	for uid in $(systemctl --no-legend --quiet list-units 'user@*.service' 2>/dev/null |
+			sed -n -r 's/.*user@([0-9]+)\.service.*/\1/p'); do
+		systemctl --quiet --user --machine "$uid@" "$@" >/dev/null 2>&1 || true
+	done
+}
+
+if [ "$1" = "remove" ]; then
+	# Closing the Maestro session also ends "PC only" mode on the buds.
+	for_each_user stop kbudsd.service
+fi
+
+#DEBHELPER#

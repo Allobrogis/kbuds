@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="#1a73e8"/>
+  <g fill="#ffffff">
+    <ellipse cx="44" cy="58" rx="20" ry="24"/>
+    <ellipse cx="84" cy="58" rx="20" ry="24"/>
+  </g>
+  <g fill="#1a73e8">
+    <circle cx="44" cy="58" r="9"/>
+    <circle cx="84" cy="58" r="9"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="38" y="78" width="12" height="22" rx="6"/>
+    <rect x="78" y="78" width="12" height="22" rx="6"/>
+  </g>
+</svg>
